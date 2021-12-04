@@ -5,19 +5,33 @@ const char* password = "password";
 
 WiFiServer server(80);
 
-String header;
+enum VehicleState
+{
+    EV_UNKNOWN = 0,
+    EV_NOT_CONNECTED,
+    EV_CONNECTED,
+    EV_CHARGE
+};
 
+VehicleState ev_state = EV_NOT_CONNECTED;
 String relay_state = "off";
-
 bool fault = false;
 
 // Input pins
 const int fault_pin = 4;
+const int pilot_read_pin = 20;
 
 // Output pins
 const int relay_ctrl_pin = 45;
 const int fault_mode_pin = 42;
-const int pilot_driver_pin = 26;
+const int pilot_drive_pin = 26;
+
+// Pilot measurement states
+const int PILOT_NOT_CONNECTED = 511; // 12 V
+const int PILOT_CONNECTED = 383;     // 9 V
+const int PILOT_CHARGE = 255;        // 6 V
+
+const int PILOT_READ_TOLERANCE = 1000;
 
 void setup()
 {
@@ -25,15 +39,18 @@ void setup()
   
     // Inputs
     pinMode(fault_pin, INPUT);
+    
+    pinMode(pilot_read_pin, INPUT);
+    analogReadResolution(9);
   
     // Outputs
     pinMode(relay_ctrl_pin, OUTPUT);
     pinMode(fault_mode_pin, OUTPUT);
-    pinMode(pilot_driver_pin, OUTPUT);
+    pinMode(pilot_drive_pin, OUTPUT);
     
     digitalWrite(relay_ctrl_pin, LOW);
     digitalWrite(fault_mode_pin, LOW);
-    digitalWrite(pilot_driver_pin, LOW);
+    digitalWrite(pilot_drive_pin, LOW);
   
     // Connect to Wi-Fi network with SSID and password
     Serial.print("Setting AP (Access Point)…");
@@ -60,12 +77,41 @@ void loop()
         relay_state = "off";
         digitalWrite(relay_ctrl_pin, LOW);
     }
+
+    int pilot_measurement = analogRead(pilot_read_pin);
+    Serial.print("Pilot: ");
+    Serial.println(pilot_measurement);
+    if (pilot_measurement > PILOT_NOT_CONNECTED - PILOT_READ_TOLERANCE) // Not connected
+    {
+        if (ev_state != EV_NOT_CONNECTED)
+            Serial.println("EV disconnected");
+        ev_state = EV_NOT_CONNECTED;
+    }
+    else if (pilot_measurement > PILOT_CONNECTED - PILOT_READ_TOLERANCE && pilot_measurement < PILOT_CONNECTED + PILOT_READ_TOLERANCE) // Connected
+    {
+        if (ev_state != EV_CONNECTED)
+            Serial.println("EV connected");
+        ev_state = EV_CONNECTED;
+    }
+    else if (pilot_measurement > PILOT_CHARGE - PILOT_READ_TOLERANCE && pilot_measurement < PILOT_CHARGE + PILOT_READ_TOLERANCE) // Charge
+    {
+        if (ev_state != EV_CHARGE)
+            Serial.println("EV charge ready");
+        ev_state = EV_CHARGE;
+    }
+    else
+    {
+        //Serial.print("Unknown pilot state: ADC=");
+        //Serial.println(pilot_measurement);
+        ev_state = EV_UNKNOWN;
+    }
     
     WiFiClient client = server.available();   // Listen for incoming clients
     
     if (client)                               // If a new client connects
     {
         Serial.println("Client Connected");     // print a message out in the serial port
+        String header;
         String currentLine = "";                // make a String to hold incoming data from the client
         while (client.connected())              // loop while the client's connected
         {
@@ -149,11 +195,10 @@ void loop()
                 }
             }
         }
-        // Clear the header variable
-        header = "";
         // Close the connection
         client.stop();
         Serial.println("Client disconnected");
         Serial.println("");
     }
+    delay(200);
 }
