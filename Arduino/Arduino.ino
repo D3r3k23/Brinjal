@@ -31,7 +31,7 @@ const int PILOT_NOT_CONNECTED = 511; // 12 V
 const int PILOT_CONNECTED = 383;     // 9 V
 const int PILOT_CHARGE = 255;        // 6 V
 
-const int PILOT_READ_TOLERANCE = 1000;
+const int PILOT_READ_TOLERANCE = 50;
 
 void setup()
 {
@@ -79,8 +79,8 @@ void loop()
     }
 
     int pilot_measurement = analogRead(pilot_read_pin);
-    Serial.print("Pilot: ");
-    Serial.println(pilot_measurement);
+    // Serial.print("Pilot: ");
+    // Serial.println(pilot_measurement);
     if (pilot_measurement > PILOT_NOT_CONNECTED - PILOT_READ_TOLERANCE) // Not connected
     {
         if (ev_state != EV_NOT_CONNECTED)
@@ -101,8 +101,8 @@ void loop()
     }
     else
     {
-        //Serial.print("Unknown pilot state: ADC=");
-        //Serial.println(pilot_measurement);
+        Serial.print("Unknown pilot state: ADC=");
+        Serial.println(pilot_measurement);
         ev_state = EV_UNKNOWN;
     }
     
