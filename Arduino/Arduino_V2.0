@@ -1,6 +1,6 @@
 #include <WiFi.h>
 
-const char* ssid     = "Brinjal";
+const char* ssid     = "Brinjal2";
 const char* password = "password";
 
 WiFiServer server(80);
@@ -205,13 +205,23 @@ void loop()
                         //Display error messages
                         switch(error_state){
                           case 1:
-                            client.println("<font style='color:green'>");
+                            client.println("<font style='color:red'>");
                             client.println("<p>EV State Unknown</p>");
                             break;
                           case 2:
-                          //  client.println("<p>EV Not Connected</p>");
-                          //  client.println("<p style="color:Tomato;">EV Not Connected</p>");
+                            client.println("<font style='color:red'>");
+                            client.println("<p>EV Not Connected</p>");
                             break;
+                        }
+                        if(ev_state == EV_CONNECTED)
+                        {
+                          client.println("<font style='color:green'>");
+                          client.println("<p>EV Connected</p>");
+                        }
+                        if(ev_state == EV_CHARGE)
+                        {
+                          client.println("<font style='color:green'>");
+                          client.println("<p>EV Connected</p>");
                         }
                         
                         
