@@ -138,6 +138,8 @@ void loop()
                         {
                             if (fault)
                                 Serial.println("Error: System is in fault mode");
+                            else if (ev_state != EV_CONNECTED) // EV_CHARGE
+                                Serial.println("Error: EV is not ready to charge");
                             else
                             {
                                 Serial.println("Relay on");
@@ -168,15 +170,30 @@ void loop()
                         
                         // Display current state, and ON/OFF buttons
                         client.println("<p>Relay state: " + relay_state + "</p>");
-                        // If the relay is off, it displays the ON button
-                        if (relay_state == "off")
+
+                        // Check EV state
+                        if (ev_state == EV_NOT_CONNECTED)
                         {
-                            client.println("<p><a href=\"/relay/on\"><button class=\"button\">ON</button></a></p>");
+                            client.println("<font style='color:red'>");
+                            client.println("<p>EV Not Connected</p>");
+                        }
+                        else if (ev_state == EV_CONNECTED)
+                        {
+                            client.println("<font style='color:green'>");
+                            client.println("<p>EV Connected</p>");
+                            
+                            // If the relay is off, it displays the ON button
+                            if (relay_state == "off")
+                                client.println("<p><a href=\"/relay/on\"><button class=\"button\">ON</button></a></p>");
+                            else
+                                client.println("<p><a href=\"/relay/off\"><button class=\"button button2\">OFF</button></a></p>");
                         }
                         else
                         {
-                            client.println("<p><a href=\"/relay/off\"><button class=\"button button2\">OFF</button></a></p>");
-                        }
+                            client.println("<font style='color:red'>");
+                            client.println("<p>EV State Unknown</p>");
+                        }           
+                        
                         client.println("</body></html>");
                         
                         // The HTTP response ends with another blank line
