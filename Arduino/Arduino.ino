@@ -87,6 +87,7 @@ void loop()
             Serial.println("EV disconnected");
         ev_state = EV_NOT_CONNECTED;
         relay_state = "off";
+        digitalWrite(relay_ctrl_pin, LOW);
     }
     else if (pilot_measurement > PILOT_CONNECTED - PILOT_READ_TOLERANCE && pilot_measurement < PILOT_CONNECTED + PILOT_READ_TOLERANCE) // Connected
     {
