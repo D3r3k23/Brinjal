@@ -1,7 +1,7 @@
 #include <WiFi.h>
 
 const char* ssid     = "Brinjal";
-const char* password = "password";
+const char* password = "password123";
 
 WiFiServer server(80);
 
@@ -86,6 +86,7 @@ void loop()
         if (ev_state != EV_NOT_CONNECTED)
             Serial.println("EV disconnected");
         ev_state = EV_NOT_CONNECTED;
+        relay_state = "off";
     }
     else if (pilot_measurement > PILOT_CONNECTED - PILOT_READ_TOLERANCE && pilot_measurement < PILOT_CONNECTED + PILOT_READ_TOLERANCE) // Connected
     {
@@ -158,8 +159,8 @@ void loop()
                         client.println("<!DOCTYPE html><html>");
                         client.println("<head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">");
                         client.println("<link rel=\"icon\" href=\"data:,\">");
+                        
                         // CSS to style the on/off buttons 
-                        // Feel free to change the background-color and font-size attributes to fit your preferences
                         client.println("<style>html { font-family: Helvetica; display: inline-block; margin: 0px auto; text-align: center;}");
                         client.println(".button { background-color: #4CAF50; border: none; color: white; padding: 16px 40px;");
                         client.println("text-decoration: none; font-size: 30px; margin: 2px; cursor: pointer;}");
@@ -171,8 +172,13 @@ void loop()
                         // Display current state, and ON/OFF buttons
                         client.println("<p>Relay state: " + relay_state + "</p>");
 
-                        // Check EV state
-                        if (ev_state == EV_NOT_CONNECTED)
+                        // Check fault EV state
+                        if (fault)
+                        {
+                            client.println("<font style='color:red'>");
+                            client.println("<p>EV FAULT DETECTED - reset system</p>");
+                        }
+                        else if (ev_state == EV_NOT_CONNECTED)
                         {
                             client.println("<font style='color:red'>");
                             client.println("<p>EV Not Connected</p>");
@@ -184,9 +190,9 @@ void loop()
                             
                             // If the relay is off, it displays the ON button
                             if (relay_state == "off")
-                                client.println("<p><a href=\"/relay/on\"><button class=\"button\">ON</button></a></p>");
+                                client.println("<p><a href=\"/relay/on\"><button class=\"button\">CHARGE</button></a></p>");
                             else
-                                client.println("<p><a href=\"/relay/off\"><button class=\"button button2\">OFF</button></a></p>");
+                                client.println("<p><a href=\"/relay/off\"><button class=\"button button2\">STOP</button></a></p>");
                         }
                         else
                         {
