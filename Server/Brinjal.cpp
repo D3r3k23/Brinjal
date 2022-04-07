@@ -1,18 +1,22 @@
 #include "Brinjal.hpp"
 
-#include <FunctionalInterrupt.h>
+// #include <FunctionalInterrupt.h>
 
 Brinjal::Brinjal()
-  : lcd(LCD_RS_pin, LCD_EN_pin, LCD_DATA0_pin, LCD_DATA1_pin, LCD_DATA2_pin, LCD_DATA3_pin)
-{ }
+//  : lcd(LCD_RS_pin, LCD_EN_pin, LCD_DATA0_pin, LCD_DATA1_pin, LCD_DATA2_pin, LCD_DATA3_pin)
+{
+
+}
 
 void Brinjal::begin()
 {
+    analogReadResolution(12);
+
     // Inputs
 
     pinMode(RELAY_TEST1_pin, INPUT);
     pinMode(RELAY_TEST2_pin, INPUT);
-    pinMode(PILOT_MON_pin, INPUT);
+    pinMode(CP_MON_pin, INPUT);
     pinMode(FAULT_pin, INPUT);
 
     pinMode(RST_BTN_pin, INPUT);
@@ -30,14 +34,15 @@ void Brinjal::begin()
     digitalWrite(CP_DISABLE_pin, LOW);
     digitalWrite(RELAY_CTRL_pin, LOW);
 
-    ledcSetup(CP_DRIVE_pwm, CP_FREQ_hz, PWM_RESOLUTION);
+    ledcSetup(CP_DRIVE_pwm, CP_FREQ, PWM_RESOLUTION);
     ledcAttachPin(CP_DRIVE_pin, CP_DRIVE_pwm);
 
     ledcWrite(CP_DRIVE_pwm, 127);
 
-    ledcSetup(LED_FLASH_pwm, 1, PWM_RESOLUTION);
-    ledcAttachPin(LED_CTRL_pin, LED_FLASH_pwm);
-    ledcWrite(LED_FLASH_pwm, 0);
+    pinMode(RED_LED_pin, OUTPUT);
+    pinMode(GRN_LED_pin, OUTPUT);
+    digitalWrite(RED_LED_pin, LOW);
+    digitalWrite(GRN_LED_pin, LOW);
 
     ledcSetup(BUZ_CTRL_pwm, 1000, PWM_RESOLUTION);
     ledcAttachPin(BUZ_CTRL_pin, BUZ_CTRL_pwm);
@@ -46,12 +51,90 @@ void Brinjal::begin()
 
 void Brinjal::loop()
 {
+    // Check buttons
 
+
+
+    if (!in_fault_mode())
+    {
+        if (gfci_check_fault())
+        {
+            fault_mode = true;
+            open_relay();
+
+            Serial.println("ERROR: FAULT DETECTED");
+            lcd_display("FAULT DETECTED", "Reset system");
+
+            for (int i = 0; i < 5; i++)
+            {
+                led_toggle(RED_LED);
+                buzz();
+                delay(100);
+            }
+            led_on(RED_LED);
+        }
+        else
+        {
+            if (ev_state == EV_CHARGE)
+                close_relay();
+            else
+                open_relay();
+
+            float cp = read_cp_peak();
+            Serial.println("CP: " + String(cp));
+
+            update_vehicle_state(cp);
+            Serial.println("EV state: " + String((int)ev_state));
+        }
+    }
+
+    if (relay_state == RELAY_OPEN)
+        led_on(GRN_LED);
+    else
+        led_off(GRN_LED);
+
+    if (in_fault_mode())
+        led_on(RED_LED);
+    else
+        led_off(RED_LED);
+
+    delay(500);
+}
+
+/////////////////////////
+//        Pilot        //
+/////////////////////////
+
+int Brinjal::read_cp_peak()
+{
+    int peak = 0;
+    for (int i = 0; i < CP_SAMPLES; i++)
+    {
+        const int cp_mon_sample = analogRead(CP_MON_pin);
+
+        if (cp_mon_sample > peak)
+            peak = cp_mon_sample;
+
+        delay(10);
+    }
+    return peak;
+}
+
+void Brinjal::update_vehicle_state(int cp_peak)
+{
+    if (3200 < cp_peak && cp_peak < 3500) ev_state = EV_CHARGE;
+    if (3600 < cp_peak && cp_peak < 4000) ev_state = EV_READY;
+    if (cp_peak > 4000)                   ev_state = EV_NOT_CONNECTED;
 }
 
 VehicleState Brinjal::get_vehicle_state()
 {
     return ev_state;
+}
+
+bool Brinjal::ready_to_charge()
+{
+    return ev_state == EV_READY;
 }
 
 /////////////////////////
@@ -62,9 +145,9 @@ void Brinjal::close_relay()
 {
     Serial.println("Closing Relay");
     buzz();
-    delay(200);
+    delay(100);
     buzz();
-    delay(200);
+    delay(400);
 
     digitalWrite(RELAY_CTRL_pin, HIGH);
     relay_state = RELAY_CLOSED;
@@ -74,7 +157,6 @@ void Brinjal::open_relay()
 {
     Serial.println("Opening Relay");
     buzz();
-    delay(100);
 
     digitalWrite(RELAY_CTRL_pin, LOW);
     relay_state = RELAY_OPEN;
@@ -99,7 +181,12 @@ bool Brinjal::relay_test2()
 //        GFCI        //
 ////////////////////////
 
-bool Brinjal::gfci_fault()
+bool Brinjal::in_fault_mode()
+{
+    return fault_mode;
+}
+
+bool Brinjal::gfci_check_fault()
 {
     return digitalRead(FAULT_pin);
 }
@@ -137,13 +224,13 @@ void Brinjal::lcd_clear()
 //        Buzzer        //
 //////////////////////////
 
-static const int BUZZER_FREQ_hz = 1000;
+static const int BUZZER_FREQ = 1000;
 
 void Brinjal::buzz()
 {
     static const int BUZZ_DURATION_ms = 50;
 
-    // tone(BUZ_CTRL_pin, BUZZER_FREQ_hz, BUZZ_DURATION_ms);
+    // tone(BUZ_CTRL_pin, BUZZER_FREQ, BUZZ_DURATION_ms);
 
     buzzer_on();
     delay(BUZZ_DURATION_ms);
@@ -162,50 +249,44 @@ void Brinjal::buzzer_on()
 
 void Brinjal::buzzer_off()
 {
-    ledcWriteTone(BUZ_CTRL_pin, 0);
+    ledcWriteTone(BUZ_CTRL_pwm, 0);
 }
 
 ///////////////////////
 //        LED        //
 ///////////////////////
 
-void Brinjal::led_on()
+void Brinjal::led_on(LedColor color)
 {
-    ledcWrite(LED_FLASH_pwm, 255);
-    led_state = LED_ON;
+    const int led_pin = (color == RED_LED) ? RED_LED_pin : GRN_LED_pin;
+    digitalWrite(led_pin, HIGH);
+
+    LedState* led_state = (color == RED_LED) ? &red_led_state : &grn_led_state;
+    *led_state = LED_ON;
 }
 
-void Brinjal::led_off()
+void Brinjal::led_off(LedColor color)
 {
-    ledcWrite(LED_FLASH_pwm, 0);
-    led_state = LED_OFF;
+    const int led_pin = (color == RED_LED) ? RED_LED_pin : GRN_LED_pin;
+    digitalWrite(led_pin, LOW);
+
+    LedState* led_state = (color == RED_LED) ? &red_led_state : &grn_led_state;
+    *led_state = LED_OFF;
 }
 
-void Brinjal::led_toggle()
+void Brinjal::led_toggle(LedColor color)
 {
-    if (!led_state)
-        led_on();
+    LedState state = (color == RED_LED) ? red_led_state : grn_led_state;
+
+    if (state == LED_OFF)
+        led_on(color);
     else
-        led_off();
+        led_off(color);
 }
 
-void Brinjal::led_flash_slow()
+LedState Brinjal::get_led_state(LedColor color)
 {
-    ledcChangeFrequency(LED_FLASH_pwm, 1, PWM_RESOLUTION);
-    ledcWrite(LED_FLASH_pwm, 127);
-    led_state = LED_FLASHING;
-}
-
-void Brinjal::led_flash_fast()
-{
-    ledcChangeFrequency(LED_FLASH_pwm, 4, PWM_RESOLUTION);
-    ledcWrite(LED_FLASH_pwm, 127);
-    led_state = LED_FLASHING;
-}
-
-LedState Brinjal::get_led_state()
-{
-    return led_state;
+    return (color == RED_LED) ? red_led_state : grn_led_state;
 }
 
 ///////////////////////////
@@ -233,23 +314,12 @@ bool Brinjal::check_charge_btn()
 
 void ARDUINO_ISR_ATTR Brinjal::rst_btn_isr()
 {
+    Serial.println("RST BTN interrupt");
     rst_btn_pressed = true;
 }
 
 void ARDUINO_ISR_ATTR Brinjal::charge_btn_isr()
 {
+    Serial.println("CHARGE BTN interrupt");
     charge_btn_pressed = true;
-}
-
-// CP sampling timer ISR
-
-static portMUX_TYPE timer_mux = portMUX_INITIALIZER_UNLOCKED;
-
-void ARDUINO_ISR_ATTR Brinjal::cp_sample_isr()
-{
-    portENTER_CRITICAL_ISR(&timer_mux);
-
-
-
-    portEXIT_CRITICAL_ISR(&timer_mux);
 }

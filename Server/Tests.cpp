@@ -1,18 +1,13 @@
 #include "Tests.hpp"
 
-bool Tests::pilot()
-{
-    Serial.println("Testing control control pilot measurement");
-    return true;
-}
-
 bool Tests::gfci()
 {
     Serial.println("Running GFCI test");
 
     brinjal->gfci_test_start();
-    // Delay?
-    bool passed = brinjal->gfci_fault();
+    delay(40);
+
+    bool passed = brinjal->gfci_check_fault();
 
     if (!passed)
         Serial.println("GFCI test failed");
@@ -42,11 +37,12 @@ bool Tests::relay()
     brinjal->buzz();
     delay(1000);
     brinjal->buzz();
-    delay(250);
+    delay(200);
     brinjal->buzz();
-    delay(500);
+    delay(200);
 
     brinjal->close_relay();
+    delay(4000);
 
     bool T1 = brinjal->relay_test1();
 #if BRINJAL_240V
