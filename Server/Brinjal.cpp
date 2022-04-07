@@ -75,7 +75,7 @@ void Brinjal::loop()
         }
         else
         {
-            if (ev_state == EV_CHARGE)
+            if (ev_state == EV_READY)
                 close_relay();
             else
                 open_relay();
@@ -122,8 +122,8 @@ int Brinjal::read_cp_peak()
 
 void Brinjal::update_vehicle_state(int cp_peak)
 {
-    if (3200 < cp_peak && cp_peak < 3500) ev_state = EV_CHARGE;
-    if (3600 < cp_peak && cp_peak < 4000) ev_state = EV_READY;
+    if (3200 < cp_peak && cp_peak < 3500) ev_state = EV_READY;
+    if (3600 < cp_peak && cp_peak < 4000) ev_state = EV_CONNECTED;
     if (cp_peak > 4000)                   ev_state = EV_NOT_CONNECTED;
 }
 

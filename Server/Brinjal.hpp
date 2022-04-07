@@ -11,8 +11,8 @@ enum VehicleState
 {
     EV_UNKNOWN = 0,
     EV_NOT_CONNECTED,
-    EV_READY,
-    EV_CHARGE
+    EV_CONNECTED,
+    EV_READY
 };
 
 enum RelayState
@@ -34,11 +34,11 @@ enum LedColor
 };
 
 /*
-|      State      | CP_MON | ADC  |
-|-----------------|--------|------|
-|  Not Connected  |  2.7   | 4096 |
-| Connected/Ready |  2.3   | 3850 |
-|    Charging     |   2    | 3340 |
+|     State     | CP_MON | ADC  |
+|---------------|--------|------|
+| Not Connected |  2.7   | 4096 |
+|   Connected   |  2.3   | 3850 |
+|     Ready     |   2    | 3340 |
 */
 
 class Brinjal
@@ -48,10 +48,16 @@ public:
     void begin();
     void loop();
 
+    void enable_cp();
+    void disable_cp();
+    void enable_cp_pwm();
+    void disable_cp_pwm();
+    void set_cp_duty();
     int read_cp_peak();
     void update_vehicle_state(int cp_peak);
     VehicleState get_vehicle_state();
     bool ready_to_charge();
+    void set_max_current(int current);
 
     void close_relay();
     void open_relay();
