@@ -23,7 +23,7 @@ void setup()
     Serial.println("\nSetting up WiFi Access Point");
    
     Wire.begin(41, 42);
-    Serial.print(" - Initializing LCD...\n");
+    Serial.print(" - Initializing LCD...");
     delay(100);
     LCD1.init();
     LCD1.backlight();
@@ -121,18 +121,25 @@ void loop()
                          client.println("<link rel=\"icon\" href=\"data:,\">");
 
                          // CSS to style the on/off buttons
+                         client.println("<p>");
                          client.println("<style>html { font-family: Helvetica; display: inline-block; margin: 0px auto; text-align: center;}");
                          client.println(".button { background-color: #4CAF50; border: none; color: white; padding: 16px 40px;");
                          client.println("text-decoration: none; font-size: 30px; margin: 2px; cursor: pointer;}");
-                         client.println(".button2 {background-color: #555555;}</style></head>");
+                         client.println(".button2 {background-color: #FF0000;}</style></head>");
 
                          // Web Page Heading
 
                          
-                         client.println("<body><p><h1>Brinjal EVSE CHARGER</h1>");
-            
+                         client.println("<body><p><h1>Brinjal EVSE CHARGER</h1><p><p>");
+                         
+                         client.println("Choose Max Charging Current<p><p><p>");
+
+//                         Brinjal().chargingCurrent = client.println
+
+                         
+                                    
                         // Display current state, and ON/OFF buttons for GPIO 26  
-                        client.println("<p><p>EVSE STATE: " + output + "</p>");
+                        client.println("<p><p><P>EVSE STATE: " + output + "</p>");
                         // If the output26State is off, it displays the ON button       
                         if (output=="OFF") {
                           client.println("<p><a href=\"/chargerstat/on\"><button class=\"button\">Start Charging</button></a></p>");
@@ -141,10 +148,19 @@ void loop()
                         } 
 
                         
-                        // Display current state
-                         //String cahrger_state = brinjal.
-                         //client.println("<p>Chargaing state:<p>" + cahrger_state + "</p>");
-                         //client.println("<p>Chargaing AT:<p>" + brinjal.chargingCurrent + "</p>");
+                        
+                        
+                         //current
+                         client.println("<p>Chargaing at: ");
+                         client.print(Brinjal().chargingCurrent);
+                         client.println(" A<p><p>");
+
+                         // Display current state
+                         
+//                         String stateSt;
+//                         String stat=Brinjal().get_state(stateSt);
+//                         client.println("<p><p>Charging state: " + stat + "</p><p>");
+
                          
                          client.println("</body></html>");
 
