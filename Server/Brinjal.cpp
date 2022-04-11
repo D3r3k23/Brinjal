@@ -82,7 +82,7 @@ void Brinjal::loop()
           {
               
               stateStr="EV NOT CONNECTED";
-      
+              
             }     
                 float cp = read_cp_peak();
                 Serial.println("CP: " + String(cp));
@@ -300,10 +300,10 @@ void Brinjal::timer()
   int secs = millis () / 1000;
   int mins = secs / 60;
   int hours = mins / 60;
-  secs -= mins * 60;
-  mins -= hours * 60;
+  secs -= mins * 60;  mins -= hours * 60;
   LCD.printf("%02d:%02d:%02d", hours, mins, secs);
 }
+
 //////////////////////////
 //        Buzzer        //
 //////////////////////////
