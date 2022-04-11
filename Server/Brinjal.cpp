@@ -1,9 +1,9 @@
-#include "Brinjal.hpp"
+#include "Brinjal.h"
 
 // #include <FunctionalInterrupt.h>
+LiquidCrystal_I2C LCD(0x27, 16, 2);
 
 Brinjal::Brinjal()
-//  : lcd(LCD_RS_pin, LCD_EN_pin, LCD_DATA0_pin, LCD_DATA1_pin, LCD_DATA2_pin, LCD_DATA3_pin)
 {
 
 }
@@ -11,7 +11,6 @@ Brinjal::Brinjal()
 void Brinjal::begin()
 {
     analogReadResolution(12);
-
     // Inputs
 
     pinMode(RELAY_TEST1_pin, INPUT);
@@ -37,8 +36,8 @@ void Brinjal::begin()
     ledcSetup(CP_DRIVE_pwm, CP_FREQ, PWM_RESOLUTION);
     ledcAttachPin(CP_DRIVE_pin, CP_DRIVE_pwm);
 
-    ledcWrite(CP_DRIVE_pwm, 127);
-
+    ledcWrite(CP_DRIVE_pwm, set_cp_duty(chargingCurrent));
+   
     pinMode(RED_LED_pin, OUTPUT);
     pinMode(GRN_LED_pin, OUTPUT);
     digitalWrite(RED_LED_pin, LOW);
@@ -47,14 +46,18 @@ void Brinjal::begin()
     ledcSetup(BUZ_CTRL_pwm, 1000, PWM_RESOLUTION);
     ledcAttachPin(BUZ_CTRL_pin, BUZ_CTRL_pwm);
     ledcWrite(BUZ_CTRL_pwm, 0);
+    
+    //LCD
+    Wire.begin(41, 42);
+    LCD.backlight();
+    LCD.clear();
 }
+
 
 void Brinjal::loop()
 {
-    // Check buttons
-
-
-
+    
+    
     if (!in_fault_mode())
     {
         if (gfci_check_fault())
@@ -63,7 +66,8 @@ void Brinjal::loop()
             open_relay();
 
             Serial.println("ERROR: FAULT DETECTED");
-            lcd_display("FAULT DETECTED", "Reset system");
+            LCD.clear();
+            stateStr="ERROR....";
 
             for (int i = 0; i < 5; i++)
             {
@@ -73,33 +77,47 @@ void Brinjal::loop()
             }
             led_on(RED_LED);
         }
-        else
-        {
-            if (ev_state == EV_READY)
-                close_relay();
-            else
-                open_relay();
-
-            float cp = read_cp_peak();
-            Serial.println("CP: " + String(cp));
-
-            update_vehicle_state(cp);
-            Serial.println("EV state: " + String((int)ev_state));
-        }
+        else{
+          if (ev_state ==EV_NOT_CONNECTED)
+          {
+              
+              stateStr="EV NOT CONNECTED";
+      
+            }     
+                float cp = read_cp_peak();
+                Serial.println("CP: " + String(cp));
+            
+                update_vehicle_state(ev_state,cp);
+                Serial.println("EV state: " + String((int)ev_state));       
+        }  
     }
 
     if (relay_state == RELAY_OPEN)
+      {
         led_on(GRN_LED);
+      }
     else
+    {
         led_off(GRN_LED);
-
+    }
     if (in_fault_mode())
+     {
         led_on(RED_LED);
-    else
+     }
+    else{
         led_off(RED_LED);
-
+    }
     delay(500);
-}
+     
+    unsigned long currentMillis = millis();
+    if (currentMillis - previousMillis >= interval) {
+    
+    previousMillis = currentMillis;
+    printDisplayData(); 
+    
+    }
+    printDisplayData(); 
+  }
 
 /////////////////////////
 //        Pilot        //
@@ -115,17 +133,60 @@ int Brinjal::read_cp_peak()
         if (cp_mon_sample > peak)
             peak = cp_mon_sample;
 
-        delay(10);
+        
+        
     }
     return peak;
 }
 
-void Brinjal::update_vehicle_state(int cp_peak)
+void Brinjal::update_vehicle_state(VehicleState oldChargingState,int cp_peak)
 {
-    if (3200 < cp_peak && cp_peak < 3500) ev_state = EV_READY;
-    if (3600 < cp_peak && cp_peak < 4000) ev_state = EV_CONNECTED;
-    if (cp_peak > 4000)                   ev_state = EV_NOT_CONNECTED;
+    
+    int ampsPWM = set_cp_duty(chargingCurrent);
+    Serial.print("pwm for charging = ");
+    Serial.println(ampsPWM);
+    
+    if (3200 < cp_peak && cp_peak < 3500) 
+    {
+        ev_state = EV_READY;
+    } 
+    else if (3600 < cp_peak && cp_peak < 4000)
+    {
+        ev_state = EV_CONNECTED;
+    }
+    else if (cp_peak > 4000)    
+    {               
+        ev_state = EV_NOT_CONNECTED;
+    }
+    if (!(oldChargingState == ev_state)){
+       
+       switch (ev_state){
+         case EV_READY:
+            close_relay();
+           
+            stateStr="CHARGING ";
+            chargingCurr();
+            timer();
+            break;
+            
+            
+         case EV_CONNECTED:
+           
+            stateStr="CONNECTED       ";
+            chargingCurr();
+            open_relay();
+            break;
+            
+        
+         case EV_NOT_CONNECTED:
+        
+              open_relay();
+              break;
+    }
+  }
+  
 }
+
 
 VehicleState Brinjal::get_vehicle_state()
 {
@@ -137,6 +198,14 @@ bool Brinjal::ready_to_charge()
     return ev_state == EV_READY;
 }
 
+int Brinjal::set_cp_duty(int ampsToConvert)
+{
+  
+  float pwmsignal = ampsToConvert*4.2333;
+  
+  return (round(pwmsignal));
+  
+}
 /////////////////////////
 //        Relay        //
 /////////////////////////
@@ -150,16 +219,20 @@ void Brinjal::close_relay()
     delay(400);
 
     digitalWrite(RELAY_CTRL_pin, HIGH);
+    
+    
     relay_state = RELAY_CLOSED;
 }
 
 void Brinjal::open_relay()
 {
+    #ifdef EN_CONTACTOR
     Serial.println("Opening Relay");
     buzz();
 
     digitalWrite(RELAY_CTRL_pin, LOW);
     relay_state = RELAY_OPEN;
+    #endif
 }
 
 RelayState Brinjal::get_relay_state()
@@ -205,21 +278,32 @@ void Brinjal::gfci_test_end()
 //        LCD Display        //
 ///////////////////////////////
 
-void Brinjal::lcd_display(int line, String text)
+void Brinjal::printDisplayData()
 {
-
+ 
+  LCD.setCursor(0,0);
+  LCD.print(stateStr); // print status on screen
 }
-
-void Brinjal::lcd_display(String line1, String line2)
+void Brinjal::chargingCurr()
 {
-
+  LCD.setCursor(0,1);
+  LCD.print("Amp:");
+  LCD.setCursor(4,1);
+  LCD.print(chargingCurrent);
+  LCD.setCursor(6,1);
+  LCD.print("A");
 }
-
-void Brinjal::lcd_clear()
+void Brinjal::timer()
 {
-
+  LCD.setCursor (8, 1);
+  
+  int secs = millis () / 1000;
+  int mins = secs / 60;
+  int hours = mins / 60;
+  secs -= mins * 60;
+  mins -= hours * 60;
+  LCD.printf("%02d:%02d:%02d", hours, mins, secs);
 }
-
 //////////////////////////
 //        Buzzer        //
 //////////////////////////
