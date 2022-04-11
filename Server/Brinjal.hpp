@@ -11,7 +11,7 @@
 //////////////////////
 
 
-// set LCD address, number of columns and rows
+
  
 enum VehicleState
 {
@@ -63,8 +63,12 @@ public:
     void update_vehicle_state(VehicleState oldChargingState,int cp_peak);
     VehicleState get_vehicle_state();
     bool ready_to_charge();
+    
     void set_max_current(int current);
-
+    int chargingCurrent = 30;
+    String stateStr="";
+    
+    
     void close_relay();
     void open_relay();
     RelayState get_relay_state();
@@ -102,7 +106,6 @@ private:
     const int CP_FREQ = 1000;
     const float CP_PERIOD = 1.0 / CP_FREQ;
     
-    int chargingCurrent = 30;
     
     VehicleState ev_state = EV_NOT_CONNECTED;
     RelayState relay_state = RELAY_OPEN;
@@ -113,10 +116,12 @@ private:
     LedState grn_led_state = LED_OFF;
 
     // LiquidCrystal lcd;
-    String stateStr="";
+
+   
     void printDisplayData();
     void chargingCurr();
     void timer();
+    
     // PWM channels
     const int CP_DRIVE_pwm  = 0;
     const int LED_FLASH_pwm = 1;
