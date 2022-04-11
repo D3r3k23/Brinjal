@@ -1,12 +1,11 @@
-#include "Tests.hpp"
+#include "Tests.h"
 
 bool Tests::gfci()
 {
     Serial.println("Running GFCI test");
-
+    
     brinjal->gfci_test_start();
     delay(40);
-
     bool passed = brinjal->gfci_check_fault();
 
     if (!passed)
@@ -32,7 +31,7 @@ static bool test_relay(bool relay_output, String Tname)
 bool Tests::relay()
 {
     Serial.println("Running Relay test");
-    brinjal->lcd_display("Caution:", "Testing relay");
+
 
     brinjal->buzz();
     delay(1000);
@@ -57,7 +56,6 @@ bool Tests::relay()
     #endif
     }
     brinjal->open_relay();
-    brinjal->lcd_clear();
-
+    
     return passed;
 }
