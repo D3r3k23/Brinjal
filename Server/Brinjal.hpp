@@ -1,12 +1,18 @@
 #ifndef BRINJAL_HPP
 #define BRINJAL_HPP
-
+#include <LiquidCrystal_I2C.h>
+#include <Wire.h>
 #include <Arduino.h>
+
+
 
 //////////////////////
 #define BRINJAL_240V 0
 //////////////////////
 
+
+// set LCD address, number of columns and rows
+ 
 enum VehicleState
 {
     EV_UNKNOWN = 0,
@@ -52,9 +58,9 @@ public:
     void disable_cp();
     void enable_cp_pwm();
     void disable_cp_pwm();
-    void set_cp_duty();
+    int set_cp_duty(int ampsToConvert);
     int read_cp_peak();
-    void update_vehicle_state(int cp_peak);
+    void update_vehicle_state(VehicleState oldChargingState,int cp_peak);
     VehicleState get_vehicle_state();
     bool ready_to_charge();
     void set_max_current(int current);
@@ -70,10 +76,6 @@ public:
     void gfci_test_start();
     void gfci_test_end();
 
-    void lcd_display(int line, String text);
-    void lcd_display(String line1, String line2);
-    void lcd_clear();
-
     void buzz();
     void buzzer_on();
     void buzzer_off();
@@ -83,13 +85,15 @@ public:
     void led_toggle(LedColor color);
     LedState get_led_state(LedColor color);
 
+    
     bool check_rst_btn();
     bool check_charge_btn();
 
+    
 private:
     static void ARDUINO_ISR_ATTR rst_btn_isr();
     static void ARDUINO_ISR_ATTR charge_btn_isr();
-
+    
 private:
     const int PWM_RESOLUTION = 8;
 
@@ -97,7 +101,9 @@ private:
 
     const int CP_FREQ = 1000;
     const float CP_PERIOD = 1.0 / CP_FREQ;
-
+    
+    int chargingCurrent = 30;
+    
     VehicleState ev_state = EV_NOT_CONNECTED;
     RelayState relay_state = RELAY_OPEN;
 
@@ -107,7 +113,10 @@ private:
     LedState grn_led_state = LED_OFF;
 
     // LiquidCrystal lcd;
-
+    String stateStr="";
+    void printDisplayData();
+    void chargingCurr();
+    void timer();
     // PWM channels
     const int CP_DRIVE_pwm  = 0;
     const int LED_FLASH_pwm = 1;
@@ -129,8 +138,9 @@ private:
     const int J[12+1] = { -1, 43, 42, 41, 40, 39, 38, 37, 36, 35, 34, 33, 26 };
 
     // LCD display pins
-    const int LCD_SDA_pin = J[1];
-    const int LCD_SCL_pin = J[2];
+    unsigned long previousMillis = 0;        // will store last time request was updated
+    // constants won't change:
+    const long interval = 4000;  
 
     // Buzzer pin
     const int BUZ_CTRL_pin = J[4];
