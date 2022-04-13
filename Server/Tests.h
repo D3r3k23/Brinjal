@@ -1,7 +1,7 @@
-#ifndef TESTS_HPP
-#define TESTS_HPP
+#ifndef TESTS_H
+#define TESTS_H
 
-#include "Brinjal.hpp"
+#include "Brinjal.h"
 
 struct Tests
 {
@@ -17,4 +17,4 @@ private:
     Brinjal* brinjal;
 };
 
-#endif // TESTS_HPP
+#endif // TESTS_H

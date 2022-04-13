@@ -1,189 +1,150 @@
+#define ENABLE_SERVER 1
+
 #include "Brinjal.h"
 #include "Tests.h"
-#include <WiFi.h>
 
+#if ENABLE_SERVER
+    #include <WiFi.h>
+    const char* ssid     = "Brinjal";
+    const char* password = "password123";
+
+    WiFiServer server(80);
+#endif
 
 Brinjal brinjal;
 Tests tests(&brinjal);
 
-const char* ssid     = "Brinjal";
-const char* password = "password123";
-
-String output = "OFF";
-
-
-
-WiFiServer server(80);
-LiquidCrystal_I2C LCD1(0x27, 16, 2);
 void setup()
 {
     Serial.begin(115200);
+
     brinjal.begin();
 
-    Serial.println("\nSetting up WiFi Access Point");
-   
-    Wire.begin(41, 42);
-    Serial.print(" - Initializing LCD...");
-    delay(100);
-    LCD1.init();
-    LCD1.backlight();
-    LCD1.print("WELLCOME");
-    delay(3000);
-   
-    
-    Serial.println();
-    Serial.println("Configuring access point...");
+    tests.relay();
 
+#if EN_SERVER
+    Serial.println("Setting up WiFi Access Point");
     WiFi.softAP(ssid, password);
 
-    IPAddress myIP = WiFi.softAPIP();
+    IPAddress IP = WiFi.softAPIP();
     Serial.print("AP IP address: ");
-    Serial.println(myIP);
-    
+    Serial.println(IP);
+
     server.begin();
-    LCD1.clear();
-    LCD1.print("SETTING WIFI");
-    delay(4000);
-
-//    LCD1.clear();
-//    LCD1.print("EVSE TEST...");
-//    delay(5000);
-    
-//    if (tests.gfci()==passed,tests.relay()==true)
-//    { 
-//       LCD1.clear();
-//       LCD1.print("TEST SUCCESSFUL");
-//       delay(5000);
-//    }
-//    else{
-//       LCD1.clear();
-//       LCD1.print("TEST FAILED?");
-//       brinjal.stop();
-//       delay(5000);
-//    }
-    // tests.pilot();
-    // tests.gfci();
-    // tests.relay();
-
-    LCD1.clear();
-    LCD1.print("EVSE READY");
-    delay(5000);
+#endif
 }
 
 void loop()
- {
-     
-     WiFiClient client = server.available();   // Listen for incoming clients
+{
+    brinjal.loop();
 
-     if (client)                               // If a new client connects
-     {
-         Serial.println("Client Connected");     // print a message out in the serial port
-         String header;
-         String currentLine = "";                // make a String to hold incoming data from the client
-         while (client.connected())              // loop while the client's connected
-         {
-             if (client.available())               // if there's bytes to read from the client
-             {
-                 char c = client.read();             // read a byte, then
-                 Serial.write(c);                    // print it out the serial monitor
-                 header += c;
-                 if (c == '\n')                      // if the byte is a newline character
-                 {
-                     // if the current line is blank, you got two newline characters in a row.
-                     // that's the end of the client HTTP request, so send a response:
-                     if (currentLine.length() == 0)
-                     {
-                         // HTTP headers always start with a response code (e.g. HTTP/1.1 200 OK)
-                         // and a content-type so the client knows what's coming, then a blank line:
-                         client.println("HTTP/1.1 200 OK");
-                         client.println("Content-type:text/html");
-                         client.println("Connection: close");
-                         client.println();
+#if ENABLE_SERVER
+    WiFiClient client = server.available();   // Listen for incoming clients
 
-                         // turns the GPIOs on and off
-                         if (header.indexOf("GET /chargerstat/on") >= 0)
-                         {
-                          Serial.println("\nCharger is ON");
-                          output = "ON";
-                          brinjal.loop();
-                         }
-                         else if (header.indexOf("GET /chargerstat/off") >= 0)
-                         {
-                          Serial.println("\nCharger is ON");
-                          output = "OFF";
-                          LCD1.clear();
-                          LCD1.print("EVSE is OFF");
-                         }
+    if (client)                               // If a new client connects
+    {
+        Serial.println("Client Connected");     // print a message out in the serial port
+        String header;
+        String currentLine = "";                // make a String to hold incoming data from the client
+        while (client.connected())              // loop while the client's connected
+        {
+            if (client.available())               // if there's bytes to read from the client
+            {
+                char c = client.read();             // read a byte, then
+                Serial.write(c);                    // print it out the serial monitor
+                header += c;
+                if (c == '\n')                      // if the byte is a newline character
+                {
+                    // if the current line is blank, you got two newline characters in a row.
+                    // that's the end of the client HTTP request, so send a response:
+                    if (currentLine.length() == 0)
+                    {
+                        // HTTP headers always start with a response code (e.g. HTTP/1.1 200 OK)
+                        // and a content-type so the client knows what's coming, then a blank line:
+                        client.println("HTTP/1.1 200 OK");
+                        client.println("Content-type:text/html");
+                        client.println("Connection: close");
+                        client.println();
 
-                         // Display the HTML web page
-                         client.println("<!DOCTYPE html><html>");
-                         client.println("<head><meta name=\"viewport\" content=\"width=LCD-width, initial-scale=1\">");
-                         client.println("<link rel=\"icon\" href=\"data:,\">");
+                        if (header.indexOf("GET /relay/on") >= 0)
+                        {
 
-                         // CSS to style the on/off buttons
-                         client.println("<p>");
-                         client.println("<style>html { font-family: Helvetica; display: inline-block; margin: 0px auto; text-align: center;}");
-                         client.println(".button { background-color: #4CAF50; border: none; color: white; padding: 16px 40px;");
-                         client.println("text-decoration: none; font-size: 30px; margin: 2px; cursor: pointer;}");
-                         client.println(".button2 {background-color: #FF0000;}</style></head>");
+                        }
+                        else if (header.indexOf("GET /relay/off") >= 0)
+                        {
 
-                         // Web Page Heading
+                        }
 
-                         
-                         client.println("<body><p><h1>Brinjal EVSE CHARGER</h1><p><p>");
-                         
-                         client.println("Choose Max Charging Current<p><p><p>");
+                        // Display the HTML web page
+                        client.println("<!DOCTYPE html><html>");
+                        client.println("<head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">");
+                        client.println("<link rel=\"icon\" href=\"data:,\">");
 
-//                         Brinjal().chargingCurrent = client.println
+                        // CSS to style the on/off buttons
+                        client.println("<style>html { font-family: Helvetica; display: inline-block; margin: 0px auto; text-align: center;}");
+                        client.println(".button { background-color: #4CAF50; border: none; color: white; padding: 16px 40px;");
+                        client.println("text-decoration: none; font-size: 30px; margin: 2px; cursor: pointer;}");
+                        client.println(".button2 {background-color: #555555;}</style></head>");
 
-                         
-                                    
-                        // Display current state, and ON/OFF buttons for GPIO 26  
-                        client.println("<p><p><P>EVSE STATE: " + output + "</p>");
-                        // If the output26State is off, it displays the ON button       
-                        if (output=="OFF") {
-                          client.println("<p><a href=\"/chargerstat/on\"><button class=\"button\">Start Charging</button></a></p>");
-                        } else {
-                          client.println("<p><a href=\"/chargerstat/off\"><button class=\"button button2\">Stop Charging</button></a></p>");
-                        } 
+                        // Web Page Heading
+                        client.println("<body><h1>Brinjal</h1>");
 
-                        
-                        
-                        
-                         //current
-                         client.println("<p>Chargaing at: ");
-                         client.print(Brinjal().chargingCurrent);
-                         client.println(" A<p><p>");
+                        String relay_state = brinjal.get_relay_state() == RELAY_CLOSED ? "ON" : "OFF";
 
-                         // Display current state
-                         
-//                         String stateSt;
-//                         String stat=Brinjal().get_state(stateSt);
-//                         client.println("<p><p>Charging state: " + stat + "</p><p>");
+                        // Display current state, and ON/OFF buttons
+                        client.println("<p>Relay state: " + relay_state + "</p>");
 
-                         
-                         client.println("</body></html>");
+                        // Check fault EV state
+                        if (0)
+                        {
+                            client.println("<font style='color:red'>");
+                            client.println("<p>EV FAULT DETECTED - reset system</p>");
+                        }
+                        else if (0)
+                        {
+                            client.println("<font style='color:red'>");
+                            client.println("<p>EV Not Connected</p>");
+                        }
+                        else if (1)
+                        {
+                            client.println("<font style='color:green'>");
+                            client.println("<p>EV Connected</p>");
 
-                         // The HTTP response ends with another blank line
-                         client.println();
-                         // Break out of the while loop
-                         break;
-                     }
-                     else // if you got a newline, then clear currentLine
-                     {
-                         currentLine = "";
-                     }
-                 }
-                 else if (c != '\r') // if you got anything else but a carriage return character
-                 {
-                     currentLine += c;
-                 }
-             }
-         }
-         // Close the connection
-         client.stop();
-         Serial.println("Client disconnected");
-         Serial.println("");
-     }
-     delay(200);
- }
+                            // If the relay is off, it displays the ON button
+                            if (1)
+                                client.println("<p><a href=\"/relay/on\"><button class=\"button\">CHARGE</button></a></p>");
+                            else
+                                client.println("<p><a href=\"/relay/off\"><button class=\"button button2\">STOP</button></a></p>");
+                        }
+                        else
+                        {
+                            client.println("<font style='color:red'>");
+                            client.println("<p>EV State Unknown</p>");
+                        }
+
+                        client.println("</body></html>");
+
+                        // The HTTP response ends with another blank line
+                        client.println();
+                        // Break out of the while loop
+                        break;
+                    }
+                    else // if you got a newline, then clear currentLine
+                    {
+                        currentLine = "";
+                    }
+                }
+                else if (c != '\r') // if you got anything else but a carriage return character
+                {
+                    currentLine += c;
+                }
+            }
+        }
+        // Close the connection
+        client.stop();
+        Serial.println("Client disconnected");
+        Serial.println("");
+    }
+#endif
+    delay(200);
+}
