@@ -137,7 +137,8 @@ public:
 
     // PWM channels
     const int CP_DRIVE_pwm  = 0;
-    const int BUZ_CTRL_pwm  = 1;
+    const int LED_FLASH_pwm = 1;
+    const int BUZ_CTRL_pwm  = 2;
 
     // Input pins
     const int RELAY_TEST2_pin = 7;
