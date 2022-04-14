@@ -17,20 +17,6 @@ bool Tests::gfci()
     return passed;
 }
 
-// Call after closing relay
-static bool test_relay(bool relay_output, String Tname)
-{
-    if (relay_output)
-        return true;
-    else
-    {
-        Serial.println("Relay test failed: " + Tname);
-        return false;
-    }
-}
-
-#define TEST_RELAY(RELAY_OUTPUT) test_relay(RELAY_OUTPUT, #RELAY_OUTPUT)
-
 bool Tests::relay()
 {
     Serial.println("Running Relay test");
@@ -44,20 +30,13 @@ bool Tests::relay()
     delay(200);
 
     brinjal->close_relay();
-    delay(4000);
+    delay(2000);
 
-    bool T1 = brinjal->relay_test_T1();
-#if BRINJAL_240V
-    bool T2 = brinjal->relay_test_T2();
-#endif
+    // bool T1 = brinjal->relay_test_T1();
+    int T2 = brinjal->relay_test_T2();
 
-    bool passed = TEST_RELAY(T1);
-    if (passed)
-    {
-    #if BRINJAL_240V
-        passed = TEST_RELAY(T2);
-    #endif
-    }
+    bool passed = (T2 == HIGH);
+
     brinjal->open_relay();
 
     return passed;

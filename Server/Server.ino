@@ -18,7 +18,9 @@ Tests tests(&brinjal);
 #if ENABLE_SERVER
     void write_html_webpage()
     {
-        client.println("<h1 style='font-size:60px;'>Brinjal</h1>");
+        client.print("<h1 style='font-size:60px;'><a href='/'>");
+        client.print("Brinjal");
+        client.println("</a></h1>");
 
         if (brinjal.in_fault_mode())
         {
@@ -35,7 +37,7 @@ Tests tests(&brinjal);
         else if (brinjal.get_evsu_state() == EVSU_READY)
         {
             client.println("<font style='color:green'>");
-            client.println("<p>Ready to charge</p>");
+            client.println("<h3>Ready to charge</h3>");
         }
 
         // CSS buttons
@@ -45,9 +47,9 @@ Tests tests(&brinjal);
         client.println(".button2 {background-color: #555555;}</style></head>");
 
         if (brinjal.get_evsu_state() == EVSU_CHARGING)
-            client.println("<p><a href=\"/stop\"><button class=\"button button2\">STOP</button></a></p>");
+            client.println("<p><a href='/stop'><button class='button button2'>STOP</button></a></p>");
         else
-            client.println("<p><a href=\"/charge\"><button class=\"button\">CHARGE</button></a></p>");
+            client.println("<p><a href='/charge'><button class='button'>CHARGE</button></a></p>");
 
         client.println("<font style='color:black'>");
         client.println("<p>EVSU state: " + evsu_state_to_string(brinjal.get_evsu_state()) + "</p>");
@@ -62,8 +64,6 @@ void setup()
     Serial.begin(115200);
 
     brinjal.begin();
-
-    // tests.relay();
 
 #if ENABLE_SERVER
     Serial.println("Setting up WiFi Access Point");

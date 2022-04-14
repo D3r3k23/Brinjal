@@ -145,14 +145,19 @@ void Brinjal::loop()
             {
                 Serial.println("EV state: " + ev_state_to_string(ev_state));
 
-                if (evsu_state == EVSU_CHARGING && ev_state != EV_READY) // EV disconnected/unavailable
-                {
-                    stop_charging();
-                }
-                else if (ev_state == EV_READY) // EV became ready
+                if (ev_state == EV_READY) // EV became ready
                 {
                     evsu_state = EVSU_READY;
                     lcd_display("READY", "");
+                }
+                else if (evsu_state == EVSU_CHARGING) // EV disconnected/unavailable
+                {
+                    stop_charging();
+                }
+                else
+                {
+                    evsu_state = EVSU_IDLE;
+                    lcd_clear();
                 }
             }
 
@@ -189,7 +194,7 @@ bool Brinjal::request_charge()
 void Brinjal::start_charging()
 {
     close_relay();
-    lcd_display("Charging", "");
+    lcd_display("CHARGING", "");
     led_on(GRN_LED);
     evsu_state = EVSU_CHARGING;
 }
@@ -200,6 +205,8 @@ void Brinjal::stop_charging()
     lcd_clear();
     led_off(GRN_LED);
     evsu_state = get_vehicle_state() == EV_READY ? EVSU_READY : EVSU_IDLE;
+    if (evsu_state == EVSU_READY)
+        lcd_display("READY", "");
 }
 
 EVSU_State Brinjal::get_evsu_state()
@@ -280,10 +287,12 @@ int Brinjal::max_current_to_duty_cycle(int current)
 void Brinjal::close_relay()
 {
     Serial.println("Closing Relay");
-    buzz();
-    delay(100);
-    buzz();
-    delay(400);
+    for (int i = 0; i < 5; i++)
+    {
+        buzz();
+        delay(100);
+    }
+    delay(200);
 
     digitalWrite(RELAY_CTRL_pin, HIGH);
     relay_state = RELAY_CLOSED;
@@ -334,15 +343,13 @@ void Brinjal::enter_fault_mode()
     Serial.println("ERROR: FAULT DETECTED");
     lcd_display("FAULT DETECTED", "Reset system");
 
-    disable_cp();
-
     fault_mode = true;
 
-    for (int i = 0; i < 5; i++)
+    for (int i = 0; i < 10; i++)
     {
         led_toggle(RED_LED);
         buzz();
-        delay(100);
+        delay(200);
     }
     led_on(RED_LED);
 }
@@ -469,8 +476,7 @@ LedState Brinjal::get_led_state(LedColor color)
 static volatile bool s_rst_btn_was_pressed = false;
 static volatile bool s_charge_btn_was_pressed = false;
 
-static unsigned long s_last_rst_btn_interrupt = 0;
-static unsigned long s_last_charge_btn_interrupt = 0;
+static unsigned long s_last_btn_interrupt = 0;
 
 bool Brinjal::check_rst_btn()
 {
@@ -489,10 +495,9 @@ bool Brinjal::check_charge_btn()
 void IRAM_ATTR Brinjal::rst_btn_isr()
 {
     unsigned long interrupt_time = millis();
-    if (interrupt_time - s_last_rst_btn_interrupt > 1000)
+    if (interrupt_time - s_last_btn_interrupt > 1000)
     {
-        Serial.println("Reset BTN interrupt");
-        s_last_rst_btn_interrupt = interrupt_time;
+        s_last_btn_interrupt = interrupt_time;
         s_rst_btn_was_pressed = true;
     }
 }
@@ -500,10 +505,9 @@ void IRAM_ATTR Brinjal::rst_btn_isr()
 void IRAM_ATTR Brinjal::charge_btn_isr()
 {
     unsigned long interrupt_time = millis();
-    if (interrupt_time - s_last_charge_btn_interrupt > 1000)
+    if (interrupt_time - s_last_btn_interrupt > 1000)
     {
-        Serial.println("Charge BTN interrupt");
-        s_last_charge_btn_interrupt = interrupt_time;
+        s_last_btn_interrupt = interrupt_time;
         s_charge_btn_was_pressed = true;
     }
 }

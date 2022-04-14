@@ -137,7 +137,7 @@ public:
 
     // PWM channels
     const int CP_DRIVE_pwm  = 0;
-    const int BUZ_CTRL_pwm  = 1;
+    const int BUZ_CTRL_pwm  = 2;
 
     // Input pins
     const int RELAY_TEST2_pin = 7;
@@ -162,13 +162,13 @@ public:
     // Buzzer pin
     const int BUZ_CTRL_pin = J[10];
 
+    // Button pins
+    const int CHARGE_BTN_pin = J[9];
+    const int RST_BTN_pin    = J[8];
+
     // LED pins
     const int RED_LED_pin = J[7];
     const int GRN_LED_pin = J[6];
-
-    // Button pins
-    const int RST_BTN_pin    = J[8];
-    const int CHARGE_BTN_pin = J[9];
 };
 
 #endif // BRINJAL_H
