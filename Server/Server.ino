@@ -1,7 +1,7 @@
-#define ENABLE_SERVER 1
-
 #include "Brinjal.h"
 #include "Tests.h"
+
+#define ENABLE_SERVER 1
 
 #if ENABLE_SERVER
     #include <WiFi.h>
@@ -9,10 +9,53 @@
     const char* password = "password123";
 
     WiFiServer server(80);
+    WiFiClient client;
 #endif
 
 Brinjal brinjal;
 Tests tests(&brinjal);
+
+#if ENABLE_SERVER
+    void write_html_webpage()
+    {
+        client.println("<h1 style='font-size:60px;'>Brinjal</h1>");
+
+        if (brinjal.in_fault_mode())
+        {
+            client.println("<font style='color:red'>");
+            client.println("<h2>GROUND FAULT DETECTED</h2>");
+            client.println("<font style='color:red'>");
+            client.println("<p>Please reset system</p>");
+        }
+        else if (brinjal.get_evsu_state() == EVSU_CHARGING)
+        {
+            client.println("<font style='color:green'>");
+            client.println("<h2>CHARGING</h2>");
+        }
+        else if (brinjal.get_evsu_state() == EVSU_READY)
+        {
+            client.println("<font style='color:green'>");
+            client.println("<p>Ready to charge</p>");
+        }
+
+        // CSS buttons
+        client.println("<style>html { font-family: Helvetica; display: inline-block; margin: 0px auto; text-align: center;}");
+        client.println(".button { background-color: #4CAF50; border: none; color: white; padding: 16px 40px;");
+        client.println("text-decoration: none; font-size: 30px; margin: 2px; cursor: pointer;}");
+        client.println(".button2 {background-color: #555555;}</style></head>");
+
+        if (brinjal.get_evsu_state() == EVSU_CHARGING)
+            client.println("<p><a href=\"/stop\"><button class=\"button button2\">STOP</button></a></p>");
+        else
+            client.println("<p><a href=\"/charge\"><button class=\"button\">CHARGE</button></a></p>");
+
+        client.println("<font style='color:black'>");
+        client.println("<p>EVSU state: " + evsu_state_to_string(brinjal.get_evsu_state()) + "</p>");
+        client.println("<p>EV (CP) state: " + ev_state_to_string(brinjal.get_vehicle_state()) + "</p>");
+        client.println("<p>Relay state: " + String((brinjal.relay_closed() ? "Closed" : "Open")) + "</p>");
+        client.println("<p>Fault mode: " + String((brinjal.in_fault_mode() ? "ON" : "OFF")) + "</p>");
+    }
+#endif
 
 void setup()
 {
@@ -20,14 +63,14 @@ void setup()
 
     brinjal.begin();
 
-    tests.relay();
+    // tests.relay();
 
-#if EN_SERVER
+#if ENABLE_SERVER
     Serial.println("Setting up WiFi Access Point");
     WiFi.softAP(ssid, password);
 
     IPAddress IP = WiFi.softAPIP();
-    Serial.print("AP IP address: ");
+    Serial.print("IP address: ");
     Serial.println(IP);
 
     server.begin();
@@ -39,112 +82,68 @@ void loop()
     brinjal.loop();
 
 #if ENABLE_SERVER
-    WiFiClient client = server.available();   // Listen for incoming clients
-
-    if (client)                               // If a new client connects
+    if (client = server.available()) // If a new client connects
     {
-        Serial.println("Client Connected");     // print a message out in the serial port
-        String header;
-        String currentLine = "";                // make a String to hold incoming data from the client
-        while (client.connected())              // loop while the client's connected
+        Serial.println("Client Connected");
+        String header = "";
+        String currentLine = "";
+
+        while (client.available()) // Client data available
         {
-            if (client.available())               // if there's bytes to read from the client
+            char c = client.read();
+            // Serial.write(c);
+            header += c;
+            if (c == '\n')
             {
-                char c = client.read();             // read a byte, then
-                Serial.write(c);                    // print it out the serial monitor
-                header += c;
-                if (c == '\n')                      // if the byte is a newline character
+                // 2 newlines in a row -> end of client HTTP request
+                if (currentLine.length() == 0)
                 {
-                    // if the current line is blank, you got two newline characters in a row.
-                    // that's the end of the client HTTP request, so send a response:
-                    if (currentLine.length() == 0)
+                    // HTTP headers always start with a response code (e.g. HTTP/1.1 200 OK)
+                    // and a content-type so the client knows what's coming, then a blank line:
+                    client.println("HTTP/1.1 200 OK");
+                    client.println("Content-type:text/html");
+                    client.println("Connection: close");
+                    client.println();
+
+                    ///////////////////
+                    // Check buttons //
+                    if (header.indexOf("GET /charge") >= 0)
                     {
-                        // HTTP headers always start with a response code (e.g. HTTP/1.1 200 OK)
-                        // and a content-type so the client knows what's coming, then a blank line:
-                        client.println("HTTP/1.1 200 OK");
-                        client.println("Content-type:text/html");
-                        client.println("Connection: close");
-                        client.println();
-
-                        if (header.indexOf("GET /relay/on") >= 0)
-                        {
-
-                        }
-                        else if (header.indexOf("GET /relay/off") >= 0)
-                        {
-
-                        }
-
-                        // Display the HTML web page
-                        client.println("<!DOCTYPE html><html>");
-                        client.println("<head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">");
-                        client.println("<link rel=\"icon\" href=\"data:,\">");
-
-                        // CSS to style the on/off buttons
-                        client.println("<style>html { font-family: Helvetica; display: inline-block; margin: 0px auto; text-align: center;}");
-                        client.println(".button { background-color: #4CAF50; border: none; color: white; padding: 16px 40px;");
-                        client.println("text-decoration: none; font-size: 30px; margin: 2px; cursor: pointer;}");
-                        client.println(".button2 {background-color: #555555;}</style></head>");
-
-                        // Web Page Heading
-                        client.println("<body><h1>Brinjal</h1>");
-
-                        String relay_state = brinjal.get_relay_state() == RELAY_CLOSED ? "ON" : "OFF";
-
-                        // Display current state, and ON/OFF buttons
-                        client.println("<p>Relay state: " + relay_state + "</p>");
-
-                        // Check fault EV state
-                        if (0)
-                        {
-                            client.println("<font style='color:red'>");
-                            client.println("<p>EV FAULT DETECTED - reset system</p>");
-                        }
-                        else if (0)
-                        {
-                            client.println("<font style='color:red'>");
-                            client.println("<p>EV Not Connected</p>");
-                        }
-                        else if (1)
-                        {
-                            client.println("<font style='color:green'>");
-                            client.println("<p>EV Connected</p>");
-
-                            // If the relay is off, it displays the ON button
-                            if (1)
-                                client.println("<p><a href=\"/relay/on\"><button class=\"button\">CHARGE</button></a></p>");
-                            else
-                                client.println("<p><a href=\"/relay/off\"><button class=\"button button2\">STOP</button></a></p>");
-                        }
-                        else
-                        {
-                            client.println("<font style='color:red'>");
-                            client.println("<p>EV State Unknown</p>");
-                        }
-
-                        client.println("</body></html>");
-
-                        // The HTTP response ends with another blank line
-                        client.println();
-                        // Break out of the while loop
-                        break;
+                        brinjal.request_charge();
                     }
-                    else // if you got a newline, then clear currentLine
+                    if (header.indexOf("GET /stop") >= 0)
                     {
-                        currentLine = "";
+                        if (brinjal.get_evsu_state() == EVSU_CHARGING)
+                            brinjal.stop_charging();
                     }
+
+                    // HTML header
+                    client.println("<!DOCTYPE html><html>");
+                    client.println("<head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">");
+                    client.println("<link rel=\"icon\" href=\"data:,\">");
+
+                    client.print("<body>");
+                    write_html_webpage();
+                    client.println("</body></html>");
+
+                    // HTTP response ends with newline
+                    client.println();
+                    break;
                 }
-                else if (c != '\r') // if you got anything else but a carriage return character
+                else
                 {
-                    currentLine += c;
+                    currentLine = "";
                 }
             }
+            else if (c != '\r')
+            {
+                currentLine += c;
+            }
         }
-        // Close the connection
+
+        // Close connection
         client.stop();
         Serial.println("Client disconnected");
-        Serial.println("");
     }
 #endif
-    delay(200);
 }

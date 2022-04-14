@@ -5,17 +5,15 @@
 #include <LiquidCrystal_I2C.h>
 #include <Wire.h>
 
-//////////////////////
-#define BRINJAL_240V 0
-//////////////////////
-
-enum VehicleState
+enum EVSU_State
 {
-    EV_UNKNOWN = 0,
-    EV_NOT_CONNECTED,
-    EV_CONNECTED,
-    EV_READY
+    EVSU_UNKNOWN = 0,
+    EVSU_IDLE,
+    EVSU_READY,
+    EVSU_CHARGING
 };
+
+String evsu_state_to_string(EVSU_State state);
 
 enum RelayState
 {
@@ -35,6 +33,16 @@ enum LedColor
     GRN_LED
 };
 
+enum VehicleState
+{
+    EV_UNKNOWN = 0,
+    EV_NOT_CONNECTED,
+    EV_CONNECTED,
+    EV_READY
+};
+
+String ev_state_to_string(VehicleState state);
+
 /*
 |     State     | CP_MON | ADC  |
 |---------------|--------|------|
@@ -48,13 +56,14 @@ class Brinjal
 public:
     Brinjal();
     void begin();
-    void rst();
+    void reset();
     void loop();
 
     bool ready_to_charge();
     bool request_charge();
     void start_charging();
     void stop_charging();
+    EVSU_State get_evsu_state();
 
     // Pilot
     void enable_cp();
@@ -64,7 +73,6 @@ public:
     int read_cp_peak();
     void update_vehicle_state(int cp_peak);
     VehicleState get_vehicle_state();
-    String ev_state_to_string(VehicleState state);
     int get_max_current();
     int max_current_to_duty_cycle(int current);
     void set_max_current(int current);
@@ -105,10 +113,10 @@ public:
     // Buttons
     bool check_rst_btn();
     bool check_charge_btn();
-    static void ARDUINO_ISR_ATTR rst_btn_isr();
-    static void ARDUINO_ISR_ATTR charge_btn_isr();
+    static void IRAM_ATTR rst_btn_isr();
+    static void IRAM_ATTR charge_btn_isr();
 
-private:
+public:
     const int PWM_RESOLUTION = 8;
 
     const int CP_SAMPLES = 50;
@@ -116,6 +124,7 @@ private:
     const int CP_FREQ = 1000;
     const float CP_PERIOD = 1.0 / CP_FREQ;
 
+    EVSU_State evsu_state = EVSU_IDLE;
     VehicleState ev_state = EV_NOT_CONNECTED;
     RelayState relay_state = RELAY_OPEN;
 
@@ -144,22 +153,23 @@ private:
     const int RELAY_CTRL_pin = 14;
 
     // IO header pins
+    // Using GPIO43 (UART0_TX) interferes with serial monitor
     const int J[12+1] = { -1, 43, 42, 41, 40, 39, 38, 37, 36, 35, 34, 33, 26 };
 
     // LCD display pins
-    const int LCD_SDA_pin = J[1];
-    const int LCD_SCL_pin = J[2];
+    const int LCD_SDA_pin = J[2];
+    const int LCD_SCL_pin = J[3];
 
     // Buzzer pin
-    const int BUZ_CTRL_pin = J[4];
+    const int BUZ_CTRL_pin = J[5];
 
     // LED pins
-    const int RED_LED_pin = J[6];
-    const int GRN_LED_pin = J[7];
+    const int RED_LED_pin = J[7];
+    const int GRN_LED_pin = J[8];
 
     // Button pins
-    const int RST_BTN_pin    = J[9];
-    const int CHARGE_BTN_pin = J[10];
+    const int RST_BTN_pin    = J[10];
+    const int CHARGE_BTN_pin = J[11];
 };
 
 #endif // BRINJAL_H

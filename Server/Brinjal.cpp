@@ -1,5 +1,41 @@
 #include "Brinjal.h"
 
+String evsu_state_to_string(EVSU_State state)
+{
+    switch (state)
+    {
+        case EVSU_IDLE:
+            return "Idle";
+        case EVSU_READY:
+            return "Ready";
+        case EVSU_CHARGING:
+            return "Charging";
+        case EVSU_UNKNOWN:
+        default:
+            return "UNKNOWN";
+    }
+}
+
+String ev_state_to_string(VehicleState state)
+{
+    switch (state)
+    {
+        case EV_NOT_CONNECTED:
+            return "Not Connected";
+        case EV_CONNECTED:
+            return "Connected";
+        case EV_READY:
+            return "Ready";
+        case EV_UNKNOWN:
+        default:
+            return "UNKNOWN";
+    }
+}
+
+///////////////////////////
+//        Brinjal        //
+///////////////////////////
+
 Brinjal::Brinjal()
   : lcd(0x27, 16, 2)
 {
@@ -18,8 +54,8 @@ void Brinjal::begin()
     pinMode(RST_BTN_pin, INPUT);
     pinMode(CHARGE_BTN_pin, INPUT);
 
-    attachInterrupt(RST_BTN_pin, rst_btn_isr, RISING);
-    attachInterrupt(CHARGE_BTN_pin, charge_btn_isr, RISING);
+    attachInterrupt(digitalPinToInterrupt(RST_BTN_pin), rst_btn_isr, RISING);
+    attachInterrupt(digitalPinToInterrupt(CHARGE_BTN_pin), charge_btn_isr, RISING);
 
     // Outputs
 
@@ -48,17 +84,21 @@ void Brinjal::begin()
     lcd.backlight();
     lcd.noCursor();
 
-    rst();
+    reset();
 }
 
-void Brinjal::rst()
+void Brinjal::reset()
 {
-    open_relay();
-    disable_cp();
+    if (relay_closed())
+        open_relay();
 
     if (in_fault_mode())
         exit_fault_mode();
 
+    evsu_state = EVSU_IDLE;
+    ev_state = EV_NOT_CONNECTED;
+
+    disable_cp();
     disable_cp_oscillation();
     enable_cp();
 
@@ -70,9 +110,23 @@ void Brinjal::rst()
 
 void Brinjal::loop()
 {
-    if (check_rst_btn())
+    bool rst_btn_pressed = check_rst_btn();
+    bool charge_btn_pressed = check_charge_btn();
+
+    // if (rst_btn_pressed)
+    //     Serial.println("Rst btn pressed");
+    // if (charge_btn_pressed)
+    //     Serial.println("Charge btn pressed");
+
+    // if (gfci_check_fault())
+    //     Serial.println("FAULT");
+    // else
+    //     Serial.println("no fault");
+
+    if (rst_btn_pressed)
     {
-        rst();
+        Serial.println("Resetting system");
+        reset();
     }
     else if (!in_fault_mode())
     {
@@ -87,27 +141,31 @@ void Brinjal::loop()
             float cp = read_cp_peak();
             update_vehicle_state(cp);
 
-            if (get_vehicle_state() != prev_vehicle_state)
+            if (ev_state != prev_vehicle_state) // New EV state
             {
-                Serial.println("EV state changed to: " + ev_state_to_string(get_vehicle_state()));
+                Serial.println("EV state: " + ev_state_to_string(ev_state));
 
-                if (prev_vehicle_state == EV_READY && relay_closed())
+                if (evsu_state == EVSU_CHARGING && ev_state != EV_READY) // EV disconnected/unavailable
+                {
+                    stop_charging();
+                }
+                else if (ev_state == EV_READY) // EV became ready
+                {
+                    evsu_state = EVSU_READY;
+                    lcd_display("READY", "");
+                }
+            }
+
+            if (charge_btn_pressed)
+            {
+                if (evsu_state == EVSU_READY)
+                    start_charging();
+                else if (evsu_state == EVSU_CHARGING)
                     stop_charging();
             }
-
-            if (get_vehicle_state() == EV_READY)
-            {
-                if (prev_vehicle_state != EV_READY)
-                    lcd_display("READY", "");
-
-                if (check_charge_btn())
-                    start_charging();
-            }
-            else
-                lcd_clear();
         }
     }
-    delay(500);
+    delay(200);
 }
 
 bool Brinjal::ready_to_charge()
@@ -133,13 +191,20 @@ void Brinjal::start_charging()
     close_relay();
     lcd_display("Charging", "");
     led_on(GRN_LED);
+    evsu_state = EVSU_CHARGING;
 }
 
 void Brinjal::stop_charging()
 {
     open_relay();
-    lcd_display("Charging", "");
+    lcd_clear();
     led_off(GRN_LED);
+    evsu_state = get_vehicle_state() == EV_READY ? EVSU_READY : EVSU_IDLE;
+}
+
+EVSU_State Brinjal::get_evsu_state()
+{
+    return evsu_state;
 }
 
 /////////////////////////
@@ -192,22 +257,6 @@ void Brinjal::update_vehicle_state(int cp_peak)
 VehicleState Brinjal::get_vehicle_state()
 {
     return ev_state;
-}
-
-String Brinjal::ev_state_to_string(VehicleState state)
-{
-    switch (state)
-    {
-        case EV_NOT_CONNECTED:
-            return "Not Connected";
-        case EV_CONNECTED:
-            return "Connected";
-        case EV_READY:
-            return "Charge Ready";
-        case EV_UNKNOWN:
-        default:
-            return "UNKNOWN";
-    }
 }
 
 int Brinjal::get_max_current()
@@ -285,6 +334,8 @@ void Brinjal::enter_fault_mode()
     Serial.println("ERROR: FAULT DETECTED");
     lcd_display("FAULT DETECTED", "Reset system");
 
+    disable_cp();
+
     fault_mode = true;
 
     for (int i = 0; i < 5; i++)
@@ -300,6 +351,7 @@ void Brinjal::exit_fault_mode()
 {
     fault_mode = false;
     led_off(RED_LED);
+    enable_cp();
 }
 
 bool Brinjal::in_fault_mode()
@@ -345,17 +397,6 @@ void Brinjal::lcd_clear()
     lcd.clear();
 }
 
-// void Brinjal::timer()
-// {
-//     lcd.setCursor (8, 1);
-
-//     int secs = millis () / 1000;
-//     int mins = secs / 60;
-//     int hours = mins / 60;
-//     secs -= mins * 60;  mins -= hours * 60;
-//     lcd.printf("%02d:%02d:%02d", hours, mins, secs);
-// }
-
 //////////////////////////
 //        Buzzer        //
 //////////////////////////
@@ -365,8 +406,6 @@ static const int BUZZER_FREQ = 1000;
 void Brinjal::buzz()
 {
     static const int BUZZ_DURATION_ms = 50;
-
-    // tone(BUZ_CTRL_pin, BUZZER_FREQ, BUZZ_DURATION_ms);
 
     buzzer_on();
     delay(BUZZ_DURATION_ms);
@@ -379,8 +418,6 @@ void Brinjal::buzzer_on()
     static const int BUZZER_OCTAVE = 1;
 
     ledcWriteNote(BUZ_CTRL_pwm, BUZZER_NOTE, BUZZER_OCTAVE);
-
-    // ledcWriteTone(BUZ_CTRL_pwm, BUZZER_FREQ_hz);
 }
 
 void Brinjal::buzzer_off()
@@ -388,9 +425,9 @@ void Brinjal::buzzer_off()
     ledcWriteTone(BUZ_CTRL_pwm, 0);
 }
 
-///////////////////////
-//        LED        //
-///////////////////////
+////////////////////////
+//        LEDs        //
+////////////////////////
 
 void Brinjal::led_on(LedColor color)
 {
@@ -429,33 +466,44 @@ LedState Brinjal::get_led_state(LedColor color)
 //        Buttons        //
 ///////////////////////////
 
-static volatile bool rst_btn_pressed = false;
-static volatile bool charge_btn_pressed = false;
+static volatile bool s_rst_btn_was_pressed = false;
+static volatile bool s_charge_btn_was_pressed = false;
+
+static unsigned long s_last_rst_btn_interrupt = 0;
+static unsigned long s_last_charge_btn_interrupt = 0;
 
 bool Brinjal::check_rst_btn()
 {
-    bool rst = rst_btn_pressed;
-    rst_btn_pressed = false;
+    bool rst = s_rst_btn_was_pressed;
+    s_rst_btn_was_pressed = false;
     return rst;
 }
 
 bool Brinjal::check_charge_btn()
 {
-    bool charge = charge_btn_pressed;
-    charge_btn_pressed = false;
+    bool charge = s_charge_btn_was_pressed;
+    s_charge_btn_was_pressed = false;
     return charge;
 }
 
-// ISRs
-
-void ARDUINO_ISR_ATTR Brinjal::rst_btn_isr()
+void IRAM_ATTR Brinjal::rst_btn_isr()
 {
-    Serial.println("RST BTN interrupt");
-    rst_btn_pressed = true;
+    unsigned long interrupt_time = millis();
+    if (interrupt_time - s_last_rst_btn_interrupt > 1000)
+    {
+        Serial.println("Reset BTN interrupt");
+        s_last_rst_btn_interrupt = interrupt_time;
+        s_rst_btn_was_pressed = true;
+    }
 }
 
-void ARDUINO_ISR_ATTR Brinjal::charge_btn_isr()
+void IRAM_ATTR Brinjal::charge_btn_isr()
 {
-    Serial.println("CHARGE BTN interrupt");
-    charge_btn_pressed = true;
+    unsigned long interrupt_time = millis();
+    if (interrupt_time - s_last_charge_btn_interrupt > 1000)
+    {
+        Serial.println("Charge BTN interrupt");
+        s_last_charge_btn_interrupt = interrupt_time;
+        s_charge_btn_was_pressed = true;
+    }
 }
