@@ -90,7 +90,7 @@ public:
     void enter_fault_mode();
     void exit_fault_mode();
     bool in_fault_mode();
-    bool gfci_check_fault();
+    bool gfci_check_fault(); // Use interrupt for this?
     void gfci_test_start();
     void gfci_test_end();
 

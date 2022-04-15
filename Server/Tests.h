@@ -9,7 +9,6 @@ struct Tests
       : brinjal(brinjal_ptr)
     { }
 
-    bool pilot();
     bool gfci();
     bool relay();
 

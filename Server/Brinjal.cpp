@@ -98,7 +98,6 @@ void Brinjal::reset()
     evsu_state = EVSU_IDLE;
     ev_state = EV_NOT_CONNECTED;
 
-    disable_cp();
     disable_cp_oscillation();
     enable_cp();
 
@@ -112,11 +111,6 @@ void Brinjal::loop()
 {
     bool rst_btn_pressed = check_rst_btn();
     bool charge_btn_pressed = check_charge_btn();
-
-    // if (rst_btn_pressed)
-    //     Serial.println("Rst btn pressed");
-    // if (charge_btn_pressed)
-    //     Serial.println("Charge btn pressed");
 
     // if (gfci_check_fault())
     //     Serial.println("FAULT");
@@ -141,16 +135,24 @@ void Brinjal::loop()
             float cp = read_cp_peak();
             update_vehicle_state(cp);
 
-            if (ev_state != prev_vehicle_state) // New EV state
+            if (get_vehicle_state() != prev_vehicle_state) // New EV state
             {
-                Serial.println("EV state: " + ev_state_to_string(ev_state));
+                Serial.println("EV state: " + ev_state_to_string(get_vehicle_state()));
 
-                if (ev_state == EV_READY) // EV became ready
+                if (get_vehicle_state() == EV_NOT_CONNECTED)
+                {
+                    disable_cp_oscillation();
+                }
+                else if (get_vehicle_state() == EV_CONNECTED)
+                {
+                    enable_cp_oscillation();
+                }
+                else if (get_vehicle_state() == EV_READY) // EV became ready
                 {
                     evsu_state = EVSU_READY;
                     lcd_display("READY", "");
                 }
-                else if (evsu_state == EVSU_CHARGING) // EV disconnected/unavailable
+                else if (get_evsu_state() == EVSU_CHARGING) // EV disconnected/unavailable
                 {
                     stop_charging();
                 }
@@ -163,14 +165,14 @@ void Brinjal::loop()
 
             if (charge_btn_pressed)
             {
-                if (evsu_state == EVSU_READY)
+                if (get_evsu_state() == EVSU_READY)
                     start_charging();
-                else if (evsu_state == EVSU_CHARGING)
+                else if (get_evsu_state() == EVSU_CHARGING)
                     stop_charging();
             }
         }
     }
-    delay(200);
+    delay(100);
 }
 
 bool Brinjal::ready_to_charge()
@@ -344,6 +346,8 @@ void Brinjal::enter_fault_mode()
     lcd_display("FAULT DETECTED", "Reset system");
 
     fault_mode = true;
+
+    disable_cp();
 
     for (int i = 0; i < 10; i++)
     {
