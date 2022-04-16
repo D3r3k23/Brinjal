@@ -1,5 +1,4 @@
 #include "Brinjal.h"
-#include "Tests.h"
 
 #define ENABLE_SERVER 1
 
@@ -13,7 +12,6 @@
 #endif
 
 Brinjal brinjal;
-Tests tests(&brinjal);
 
 #if ENABLE_SERVER
     void write_html_webpage()
@@ -25,9 +23,9 @@ Tests tests(&brinjal);
         if (brinjal.in_fault_mode())
         {
             client.println("<font style='color:red'>");
-            client.println("<h2>GROUND FAULT DETECTED</h2>");
+            client.println("<h2>FAULT DETECTED</h2>");
             client.println("<font style='color:red'>");
-            client.println("<p>Please reset system</p>");
+            client.println("<p>See LCD display</p>");
         }
         else if (brinjal.get_evsu_state() == EVSU_CHARGING)
         {
@@ -109,12 +107,16 @@ void loop()
                     // Check buttons //
                     if (header.indexOf("GET /charge") >= 0)
                     {
+                        Serial.println("Charge requested by webpage");
                         brinjal.request_charge();
                     }
                     if (header.indexOf("GET /stop") >= 0)
                     {
                         if (brinjal.get_evsu_state() == EVSU_CHARGING)
+                        {
+                            Serial.println("Charge stopped by webpage");
                             brinjal.stop_charging();
+                        }
                     }
 
                     // HTML header

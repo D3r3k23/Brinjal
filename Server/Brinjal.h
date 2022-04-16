@@ -64,6 +64,9 @@ public:
     void start_charging();
     void stop_charging();
     EVSU_State get_evsu_state();
+    void enter_fault_mode();
+    void exit_fault_mode();
+    bool in_fault_mode();
 
     // Pilot
     void enable_cp();
@@ -83,13 +86,9 @@ public:
     RelayState get_relay_state();
     bool relay_closed();
     bool relay_open();
-    bool relay_test_T1();
-    bool relay_test_T2();
+    bool relay_test();
 
     // GFCI
-    void enter_fault_mode();
-    void exit_fault_mode();
-    bool in_fault_mode();
     bool gfci_check_fault(); // Use interrupt for this?
     void gfci_test_start();
     void gfci_test_end();
@@ -134,6 +133,8 @@ public:
     LedState grn_led_state = LED_OFF;
 
     LiquidCrystal_I2C lcd;
+
+    unsigned long s_charge_start_time = 0;
 
     // PWM channels
     const int CP_DRIVE_pwm  = 0;
