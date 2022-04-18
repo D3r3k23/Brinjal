@@ -113,13 +113,6 @@ void Brinjal::loop()
     bool charge_btn_pressed = check_charge_btn();
 
     if (rst_btn_pressed)
-        Serial.println("Rst btn pressed");
-    if (charge_btn_pressed)
-        Serial.println("Charge btn pressed");
-    if (gfci_check_fault())
-        Serial.println("Fault read!!");
-
-    if (rst_btn_pressed)
     {
         Serial.println("Resetting system");
         reset();
